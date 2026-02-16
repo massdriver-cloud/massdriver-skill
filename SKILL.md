@@ -965,6 +965,14 @@ mass bundle publish --development  # v0.0.1-dev.20260213T120500Z
 - Packages on `stable` channel only upgrade when new stable releases are published
 - Auto-upgrade triggers an automatic deployment - no need to run `mass pkg deploy` after publishing
 
+**When to Manually Deploy:**
+- **Bundle publish** → Auto-deploys (no action needed)
+- **Config change** (`mass pkg cfg`) → Requires manual deploy with message:
+  ```bash
+  mass pkg cfg example-test-mydb --params=/tmp/params.json
+  mass pkg deploy example-test-mydb -m "Enable deletion protection, increase storage to 100GB"
+  ```
+
 **Important:**
 - User may need to provide a project/environment to work in
 - Credential assignment to packages may require manual setup in the UI (no CLI command yet)
