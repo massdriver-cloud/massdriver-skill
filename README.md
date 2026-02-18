@@ -6,10 +6,10 @@ Build infrastructure bundles for [Massdriver](https://massdriver.cloud), the int
 
 ```bash
 # Add the marketplace
-/plugin marketplace add massdriver-cloud/massdriver-skill
+/plugin marketplace add massdriver-cloud/claude-plugins
 
 # Install the plugin
-/plugin install massdriver@massdriver-cloud-massdriver-skill
+/plugin install massdriver@massdriver-cloud-claude-plugins
 ```
 
 ## What This Skill Does
@@ -32,7 +32,7 @@ The skill auto-activates when:
 ## Plugin Contents
 
 ```
-massdriver-skill/
+claude-plugins/
 ├── .claude-plugin/
 │   └── marketplace.json
 └── massdriver/
