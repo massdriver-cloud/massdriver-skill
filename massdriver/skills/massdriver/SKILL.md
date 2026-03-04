@@ -1,59 +1,83 @@
 ---
 name: massdriver
-description: Develop and test Massdriver infrastructure bundles. Operates in two modes - FULL (interactive deploy loop with compliance remediation) or BUILD-ONLY (local validation without publishing). Auto-activates when working with massdriver.yaml, bundles/, artifact-definitions/, or platforms/ directories. Use when creating new bundles, modifying IaC, testing deployments, or fixing compliance findings.
+description: Develop and test Massdriver infrastructure bundles. Operates in three modes - FULL (interactive deploy loop via /massdriver:develop), UPGRADE TESTING (day 2 validation via /massdriver:test-upgrade), or BUILD-ONLY (/massdriver:gen for local scaffolding). Auto-activates when working with massdriver.yaml, bundles/, artifact-definitions/, or platforms/ directories. Use when creating bundles, modifying IaC, testing deployments, validating upgrades, or fixing compliance findings.
 ---
 
 # Massdriver Bundle Development
 
-You are helping develop infrastructure bundles for Massdriver. This skill provides two operational modes, patterns, and workflows for bundle development.
+You are helping develop infrastructure bundles for Massdriver. This skill provides patterns, workflows, and reference material for bundle development.
 
-## Table of Contents
+## Quick Start
 
-- [Operational Modes](#operational-modes)
-- [Full Mode Workflow](#full-mode-workflow)
-- [Build-Only Mode Workflow](#build-only-mode-workflow)
-- [Core Concepts](#core-concepts)
-- [Bundle Design Philosophy](#bundle-design-philosophy)
-- [Bundle Scoping and Resource Lifecycle](#bundle-scoping-and-resource-lifecycle)
-- [Schema Validation](#schema-validation)
-- [Critical Rules](#critical-rules)
-- [File Responsibilities](#file-responsibilities)
-- [Common Patterns](#common-patterns)
-- [Checkov Security Configuration](#checkov-security-configuration)
-- [Validation Checklist](#validation-checklist)
-- [Common Mistakes & Fixes](#common-mistakes--fixes)
-- [Commands Reference](#commands-reference)
+| Workflow | Command | Use When |
+|----------|---------|----------|
+| **Full Development** | `/massdriver:develop <use-case>` | Creating/updating bundles with full test loop |
+| **Upgrade Testing** | `/massdriver:test-upgrade <bundle>` | Validating version upgrades against prod config |
+| **Quick Generation** | `/massdriver:gen <use-case>` | Scaffolding a bundle without deploy loop |
 
-**Reference Files:**
+## Reference Files
+
 - [PATTERNS.md](./PATTERNS.md) - Complete bundle and artifact examples
+- [references/graphql.md](./references/graphql.md) - GraphQL API operations
 - [references/alarms.md](./references/alarms.md) - Adding monitoring alarms (AWS/GCP/Azure)
 - [references/compliance.md](./references/compliance.md) - Post-deployment Checkov remediation
 - [snippets/](./snippets/) - Copy-paste templates
+
+## Safety Rules
+
+1. **NEVER** run `mass bundle publish` without `--development` flag
+2. **NEVER** configure or deploy to production environments
+3. **ALWAYS** use `-m "message"` when running `mass pkg deploy` manually
+4. **NEVER** use `massdriver/` prefixed artifact definitions - they are deprecated
+
+## Deprecated Fields
+
+Do NOT include these fields in `massdriver.yaml` (they cause warnings):
+- `type` - Deprecated, remove entirely
+- `access` - Deprecated, remove entirely
+
+## CLI vs UI Operations
+
+**CLI Available:** `mass env create/list`, `mass pkg create/cfg/deploy/version`, `mass bundle build/publish`, `mass logs`, `mass def list/get`
+
+**UI Only:** Project creation, environment forking, credential configuration, manifest linking, environment descriptions
 
 ---
 
 ## Operational Modes
 
-When starting bundle work, determine the mode:
-
 ### Full Mode (Deploy Loop)
+**Command:** `/massdriver:develop`
 **Use when:** Testing bundles end-to-end, validating compliance, iterating on real infrastructure.
 
-The full mode workflow:
-1. Gather requirements interactively
-2. Design bundle with presets
-3. Build, publish (development only), and deploy
-4. Monitor compliance findings, iterate until clean
-5. Never publish stable without explicit human authorization
+Workflow:
+1. Gather design intent interactively (UX, constraints, connections)
+2. Create test environment (`agent<SUFFIX>`)
+3. Build, publish `--development`, deploy
+4. Run test cycle: clean → apply → clean → apply → teardown
+5. Remediate compliance until all pass
+6. Human marks stable when ready
+
+### Upgrade Testing Mode
+**Command:** `/massdriver:test-upgrade`
+**Use when:** Validating bundle version upgrades before production rollout.
+
+Workflow:
+1. Fork production environment to test env
+2. Deploy current version (baseline)
+3. Upgrade to target version
+4. Validate success
+5. Report results
 
 ### Build-Only Mode
-**Use when:** Developing locally, validating syntax, no cloud access needed.
+**Command:** `/massdriver:gen`
+**Use when:** Developing locally, scaffolding quickly, no cloud access needed.
 
-The build-only mode workflow:
-1. `mass bundle build`
-2. `tofu init && tofu validate`
-3. Iterate on code until validation passes
-4. No publishing, no deployments
+Workflow:
+1. Gather quick requirements
+2. Generate bundle files
+3. `mass bundle build && tofu validate`
+4. Hand off to user
 
 ---
 
@@ -620,6 +644,7 @@ mass env create <slug> --name "<Name>"
 ## See Also
 
 - [PATTERNS.md](./PATTERNS.md) - Complete examples
+- [references/graphql.md](./references/graphql.md) - GraphQL API operations
 - [references/alarms.md](./references/alarms.md) - Monitoring alarms
 - [references/compliance.md](./references/compliance.md) - Checkov remediation
 - [snippets/](./snippets/) - Copy-paste templates
