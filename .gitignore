@@ -11,3 +11,4 @@ Thumbs.db
 
 # Packaged skills
 *.skill
+.claude/settings.local.json
