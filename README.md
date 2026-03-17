@@ -132,7 +132,7 @@ default_test_project: ""
 
 | Setting | Description |
 |---------|-------------|
-| `mass_profile` | CLI profile from `~/.massdriver/config.yaml` |
+| `mass_profile` | CLI profile from `~/.config/massdriver/config.yaml` |
 | `production_pattern` | Regex to identify production environments (protected) |
 | `organization_id` | Default org ID (optional) |
 | `default_test_project` | Where to create test environments (optional) |

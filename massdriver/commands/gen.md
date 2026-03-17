@@ -62,9 +62,9 @@ bundles/<bundle-name>/
 
 - **Params**: Focus on 3-5 developer-facing questions, use presets
 - **80/20 rule**: Cover common use cases, don't over-generalize
-- **Connections**: Use existing artifact definitions (`mass def list`)
+- **Connections**: Use existing artifact definitions (`mass def list`, ignore any `massdriver/` prefixed results)
 - **Artifacts**: Match the artifact definition schema exactly
-- **Provider**: Configure using credential connection data
+- **Provider**: `mass def get <platform>` FIRST, then write provider using only those fields — artifact defs and providers are 1:1
 - **Compliance**: Default to secure settings, add `halt_on_failure` for prod
 
 ### 4. Local Validation
@@ -83,57 +83,6 @@ Fix any issues before finishing.
 Tell the user:
 - Where the bundle was created
 - How to test it: `mass bundle publish --development`
+- Remind them to set release channel to `latest+dev` or `~X.Y+dev` after creating a package
+- If they need new artifact definitions, publish them first: `mass definition publish artifact-definitions/<name>/massdriver.yaml` (no --development flag, goes live immediately)
 - Suggest using `/massdriver:develop` if they want the full test loop
-
-## Example Output
-
-For `/massdriver:gen S3 bucket for static assets`:
-
-```yaml
-# massdriver.yaml
-schema: draft-07
-name: static-assets
-description: "S3 bucket optimized for static asset storage"
-version: 0.1.0
-
-params:
-  examples:
-    - __name: Development
-      versioning: false
-      lifecycle_days: 30
-    - __name: Production
-      versioning: true
-      lifecycle_days: 90
-  properties:
-    versioning:
-      type: boolean
-      title: Enable Versioning
-      default: false
-    lifecycle_days:
-      type: integer
-      title: Object Lifecycle (days)
-      default: 90
-      minimum: 1
-
-connections:
-  required:
-    - aws_authentication
-  properties:
-    aws_authentication:
-      $ref: aws-iam-role
-
-artifacts:
-  required:
-    - bucket
-  properties:
-    bucket:
-      $ref: aws-s3-bucket
-
-steps:
-  - path: src
-    provisioner: opentofu:1.10
-    config:
-      checkov:
-        enable: true
-        halt_on_failure: '.params.md_metadata.default_tags["md-target"] == "production"'
-```

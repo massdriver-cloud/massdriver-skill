@@ -6,8 +6,9 @@
 #
 # These settings customize how the Massdriver plugin behaves.
 
-# CLI profile to use (from ~/.massdriver/config.yaml)
-# Leave blank to use default profile
+# CLI profile to use (from ~/.config/massdriver/config.yaml)
+# The agent will ask you at session start, but you can pre-set it here.
+# Leave blank to use default profile.
 mass_profile: ""
 
 # Regex pattern to identify production environments
@@ -18,12 +19,8 @@ mass_profile: ""
 #   - "prd-.*" matches: prd-east, prd-west
 production_pattern: (prod|production)
 
-# Default organization ID (optional)
-# If set, agents won't need to ask for it
-organization_id: ""
-
 # Default project for test environments (optional)
-# If set, bundle-dev agent will create test envs here
+# If set, bundle-dev agent will offer to create test envs here
 default_test_project: ""
 ---
 
@@ -43,11 +40,16 @@ Read-only operations (viewing logs, artifacts) are still allowed.
 ## Test Environment Naming
 
 The plugin creates test environments with the pattern `agent<RANDOM>`:
-- `agentX7K2M9` - 6 random alphanumeric characters
-- These environments are yours to manage
-- Set descriptions on them as a journal of what was tested
+- `agentx7k2m9` - 6 random hex characters
+- Environment slug: `<project>-agent<random>` (e.g., `claude-agentx7k2m9`)
+- Package slugs: `<env-slug>-<manifest>` (e.g., `claude-agentx7k2m9-postgres`)
+
+**Important**: Environment slugs already contain the project ID. Never double-prefix.
 
 ## Profile Configuration
 
 If you have multiple Massdriver CLI profiles, set `mass_profile` to the one
-this project should use. Profiles are defined in `~/.massdriver/config.yaml`.
+this project should use. Profiles are defined in `~/.config/massdriver/config.yaml`.
+
+Alternatively, the agent will ask you at the start of each session.
+If using an alternate profile, the agent sets `MASSDRIVER_PROFILE=<name>`.

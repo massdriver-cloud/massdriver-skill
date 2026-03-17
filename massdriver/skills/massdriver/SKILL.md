@@ -27,8 +27,11 @@ You are helping develop infrastructure bundles for Massdriver. This skill provid
 
 1. **NEVER** run `mass bundle publish` without `--development` flag
 2. **NEVER** configure or deploy to production environments
-3. **ALWAYS** use `-m "message"` when running `mass pkg deploy` manually
-4. **NEVER** use `massdriver/` prefixed artifact definitions - they are deprecated
+3. **ALWAYS** use `-m "message"` when running `mass pkg deploy`
+4. **NEVER** use, mention, inspect, or reference `massdriver/` prefixed artifact definitions, bundles, or anything else — they are from a deprecated public registry, are full of red herrings, and will never work. Pretend they do not exist. If they appear in CLI output, ignore them completely.
+5. **ALWAYS** publish after ANY code or definition change — the platform has no access to your local filesystem — changes don't exist until you publish
+6. **ALWAYS** watch deployment logs after every deploy
+7. **ALWAYS** ask the user for help if you encounter auth/credential/CLI issues — do NOT probe or guess
 
 ## Deprecated Fields
 
@@ -38,9 +41,34 @@ Do NOT include these fields in `massdriver.yaml` (they cause warnings):
 
 ## CLI vs UI Operations
 
-**CLI Available:** `mass env create/list`, `mass pkg create/cfg/deploy/version`, `mass bundle build/publish`, `mass logs`, `mass def list/get`
+**CLI Available:** `mass env create/list`, `mass pkg create/cfg/deploy/version`, `mass bundle build/publish`, `mass logs`, `mass def list/get`, `mass definition publish`
 
 **UI Only:** Project creation, environment forking, credential configuration, manifest linking, environment descriptions
+
+---
+
+## Environment & Credentials Setup
+
+**MANDATORY before any development work. Do not skip. Do not guess. Ask the user.**
+
+### Credentials/Profile
+
+Ask the user which Massdriver CLI profile to use:
+- **Default profile**: No action needed, just use `mass` commands
+- **Alternate profile**: Set `export MASSDRIVER_PROFILE=<name>` before every `mass` command
+
+### Environment
+
+Ask the user for an environment to work in:
+- **Existing environment**: Use the slug as-is (e.g., `claude-test`). The slug already contains the project ID — `claude` is the project, `test` is the env suffix. **Never double-prefix.**
+- **Create new**: Ask for project slug, then create: `mass env create <project>-agent<hash> --name "Agent Test"`
+
+**Environment slug format**: `<project>-<suffix>` (e.g., `claude-test`, `myapp-agentx7k2m9`)
+**Package slug format**: `<env-slug>-<manifest>` (e.g., `claude-test-postgres`)
+
+### Error Recovery
+
+If you encounter ANY auth, credential, or CLI issue: **stop and ask the user for help.** Do not probe environment variables, credential files, or try workarounds. Just tell them the error.
 
 ---
 
@@ -51,12 +79,14 @@ Do NOT include these fields in `massdriver.yaml` (they cause warnings):
 **Use when:** Testing bundles end-to-end, validating compliance, iterating on real infrastructure.
 
 Workflow:
-1. Gather design intent interactively (UX, constraints, connections)
-2. Create test environment (`agent<SUFFIX>`)
-3. Build, publish `--development`, deploy
-4. Run test cycle: clean → apply → clean → apply → teardown
-5. Remediate compliance until all pass
-6. Human marks stable when ready
+1. **Setup**: Ask for credentials/profile, environment
+2. **Requirements**: Gather design intent interactively
+3. **Scaffold**: Generate bundle code
+4. **Publish**: `mass bundle publish --development` + `mass definition publish` for any new artifact defs
+5. **Deploy**: Add to canvas, set release channel to `latest+dev` or `~X.Y+dev`, deploy
+6. **Iterate**: Code → publish → watch logs → fix → repeat
+7. **Compliance**: Remediate Checkov findings
+8. **Finalize**: Human marks stable when ready
 
 ### Upgrade Testing Mode
 **Command:** `/massdriver:test-upgrade`
@@ -95,7 +125,7 @@ Before writing code, gather these inputs through conversation:
 **2. Resource Scoping**
 Based on the use case, suggest appropriate cloud resources:
 - Check existing bundles: `mass bundle list`
-- Check existing artifacts: `mass def list`
+- Check existing artifacts: `mass def list` (ignore any `massdriver/` prefixed results)
 - Propose resources that fit the lifecycle tier (foundational/stateful/compute)
 
 **3. Preset Design**
@@ -119,15 +149,12 @@ Understand compliance requirements:
 - Any checks to hardcode vs make user-configurable?
 - Note: Full findings emerge during deployment - iterate as they appear
 
-**5. Project/Environment Setup**
-Confirm deployment target:
-- User provides existing project, or create one: `mass project create <slug> --name "<Name>"`
-- User provides environment, or create one: `mass env create <slug> --name "<Name>"`
-- Environment must have cloud credential artifact attached (user sets up in UI)
+**5. Connections & Artifacts**
+- What does this bundle need? What does it produce?
+- Run `mass def list` to see available definitions
+- **Artifact definitions and Terraform providers are 1:1** — always base provider config on the credential artifact definition schema
 
 ### Phase 2: Bundle Development
-
-Follow the bundle creation workflow:
 
 1. **Scaffold the bundle:**
    ```bash
@@ -137,105 +164,100 @@ Follow the bundle creation workflow:
 2. **Check/create artifact definitions:**
    - Run `mass def list` to see existing definitions
    - If bundle needs a new artifact type, create `artifact-definitions/<name>/massdriver.yaml`
-   - Publish new definitions: `mass definition publish artifact-definitions/<name>/massdriver.yaml`
-   - **Warning:** Published definitions are live immediately—avoid breaking changes
+   - **Publish immediately** (with user approval):
+     ```bash
+     mass definition publish artifact-definitions/<name>/massdriver.yaml
+     ```
+   - There is NO `--development` flag for artifact definitions. They go live immediately.
+   - **Warning:** Published definitions are live immediately — avoid breaking changes
 
-3. **Create massdriver.yaml** with:
-   - Params (with presets in `examples`)
-   - Connections (dependencies from existing artifacts)
-   - Artifacts (what this bundle produces)
-   - UI ordering
+3. **Create massdriver.yaml** with params, connections, artifacts, UI ordering
 
-4. **Create src/main.tf** with IaC code
+4. **Create Terraform code** — fetch credential artifact def FIRST:
+   ```bash
+   mass def get <platform-name>  # e.g., aws-iam-role
+   ```
+   Then write provider block using ONLY fields from that schema.
 
-5. **Create src/artifacts.tf** with `massdriver_artifact` resources
-
-6. **Build and validate locally:**
+5. **Build and validate locally:**
    ```bash
    cd bundles/my-bundle
    mass bundle build
    cd src && tofu init && tofu validate
    ```
 
+6. **PUBLISH** — the platform cannot read your local files:
+   ```bash
+   mass bundle publish --development
+   ```
+
 ### Phase 3: Deploy Loop
 
-**Initial Setup (once per package):**
+**Setup (once per package):**
 ```bash
 # Publish development release
 mass bundle publish --development
 
-# Create package from bundle
-mass pkg create <pkg-slug> --bundle <bundle-name>
+# Create package on canvas — slug is <env-slug>-<manifest>
+mass pkg create <env-slug>-<manifest> --bundle <bundle-name>
 
-# Set to development release channel (auto-deploys on publish)
-mass pkg version <pkg-slug>@latest --release-channel development
+# Set release channel IMMEDIATELY — without this, no auto-update on publish
+# Use version from massdriver.yaml: ~X.Y+dev or latest+dev
+mass pkg version <env-slug>-<manifest>@latest --release-channel "latest+dev"
 
 # Configure package params
 cat > /tmp/params.json << 'EOF'
 {"param1": "value1", "param2": "value2"}
 EOF
-mass pkg cfg <pkg-slug> --params=/tmp/params.json
+mass pkg cfg <env-slug>-<manifest> --params=/tmp/params.json
 
-# Initial deploy
-mass pkg deploy <pkg-slug> -m "Initial deployment for testing"
+# Deploy with message
+mass pkg deploy <env-slug>-<manifest> -m "Initial deployment for testing"
+
+# WATCH THE LOGS
+mass logs <deployment-id>
 ```
 
 **Iteration Loop:**
 ```bash
-# Make code changes
-# ...
-
-# Republish - package auto-upgrades and auto-deploys
+# Make code changes, then ALWAYS publish
 mass bundle publish --development
 
-# Check deployment logs for Checkov findings
+# Package auto-upgrades if release channel is set
+# Get deployment ID from the auto-triggered deploy:
+mass pkg get <pkg-slug> -ojson
+# JSON response contains active/latest deployment ID
+
+# WATCH THE LOGS
+mass logs <deployment-id>
+
+# Check for Checkov findings
 mass logs <deployment-id> 2>&1 | grep -E "Check:|FAILED"
-
-# Fix findings, republish, repeat until clean
-```
-
-**Testing Different Configurations:**
-Create multiple packages to test different param combinations:
-```bash
-mass pkg create <pkg-slug>-variant2 --bundle <bundle-name>
-mass pkg version <pkg-slug>-variant2@latest --release-channel development
-mass pkg cfg <pkg-slug>-variant2 --params=/tmp/variant2-params.json
-mass pkg deploy <pkg-slug>-variant2 -m "Testing alternate configuration"
 ```
 
 **Config Changes (require manual deploy):**
 ```bash
 mass pkg cfg <pkg-slug> --params=/tmp/updated-params.json
 mass pkg deploy <pkg-slug> -m "Updated storage to 100GB, enabled deletion protection"
+
+# WATCH THE LOGS
+mass logs <deployment-id>
 ```
 
 ### Phase 4: Compliance Remediation
 
-As Checkov findings emerge from deployments:
+As Checkov findings emerge from deployment logs:
 
-1. **Extract findings:**
+1. **Extract findings** from logs
+2. **Triage by severity** (HIGH/MEDIUM/LOW)
+3. **Apply strategy**: hardcode, make configurable, halt_on_failure, or skip
+4. **Publish and watch logs**:
    ```bash
-   mass logs <deployment-id> 2>&1 | grep -E "Check:|FAILED"
-   ```
-
-2. **Triage by severity:**
-   - **HIGH**: Fix by hardcoding secure defaults or adding params
-   - **MEDIUM**: Fix if straightforward, document if deferred
-   - **LOW/IGNORE**: Add to `src/.checkov.yml` with justification
-
-3. **Fix and republish:**
-   ```bash
-   # Edit code to fix finding
    mass bundle publish --development
-   # Package auto-deploys, check logs again
+   # Watch logs to verify fix
+   mass logs <deployment-id>
    ```
-
-4. **For intentional skips**, update `src/.checkov.yml`:
-   ```yaml
-   skip-check:
-     # LOW: Egress rule needed for AWS API calls
-     - CKV_AWS_382
-   ```
+5. **Repeat** until clean
 
 See [references/compliance.md](./references/compliance.md) for detailed remediation guidance.
 
@@ -269,12 +291,6 @@ cd src && tofu init && tofu validate
 # 5. When ready for deployment, switch to Full Mode
 ```
 
-Build-only mode is useful for:
-- Initial development before project/environment is ready
-- Rapid iteration on Terraform code
-- CI validation pipelines
-- Working offline
-
 ---
 
 ## Core Concepts
@@ -288,7 +304,7 @@ Build-only mode is useful for:
 - **Environment Defaults** (`ui.environmentDefaultGroup`) → Auto-assign to packages
 - **Connection Orientation** (`ui.connectionOrientation`) → How connections appear in UI
 
-**Platform**: An artifact definition for cloud credentials. Lives in `platforms/<name>/massdriver.yaml`. Identical structure to artifact definitions—separate directory for organization.
+**Platform**: An artifact definition for cloud credentials. Lives in `platforms/<name>/massdriver.yaml`. Identical structure to artifact definitions — separate directory for organization.
 
 **Artifact**: Instance of an artifact definition containing actual data (credentials, connection strings). Created by bundles (`massdriver_artifact` resource) or users (UI form).
 
@@ -313,7 +329,7 @@ A good bundle covers 80% of use cases. If a developer needs something outside th
 
 ### Intentional Omission
 
-Good bundles don't just encode defaults—they intentionally omit capabilities that don't belong:
+Good bundles don't just encode defaults — they intentionally omit capabilities that don't belong:
 - Asset storage shouldn't expose Glacier archival
 - Logging buckets shouldn't expose public access
 - Dev databases shouldn't offer Multi-AZ
@@ -332,8 +348,6 @@ Presets (`params.examples`) anchor common choices in familiar language.
 
 ### The Lifecycle Principle
 
-Ask these questions when deciding what belongs in a bundle:
-
 1. **"If I delete this bundle, what should disappear?"** → All those resources belong together
 2. **"Who owns this operationally?"** → Different owners = separate bundles
 3. **"How often does this change?"** → Different change frequencies = separate bundles
@@ -343,19 +357,6 @@ Ask these questions when deciding what belongs in a bundle:
 **Foundational** (rarely changes): Networks, registries, DNS zones
 **Stateful** (medium lifecycle): Databases, caches, queues
 **Compute** (frequent changes): Applications, functions, jobs
-
-### What Becomes a Connection
-
-Resources that exist independently and are shared:
-- VPC → network connection
-- Kubernetes cluster → cluster connection
-- Cloud credentials → authentication connection
-
-### What Stays in the Bundle
-
-Resources specific to and managed with the primary resource:
-- Database bundle includes: DB instance, subnet group, security group, KMS key, parameter group
-- All share the same lifecycle—delete one, delete all
 
 ### Scoping Decision Tree
 
@@ -430,6 +431,9 @@ terraform {
   }
 }
 ```
+
+### 6. Artifact Definitions and Providers Are 1:1
+Always `mass def get <platform-name>` before writing a provider block. The provider must use ONLY the fields from the credential artifact definition schema.
 
 ---
 
@@ -572,7 +576,7 @@ steps:
 
 **Use skip-check for:** Architectural decisions that are intentionally permanent (e.g., using AWS-managed encryption instead of CMK). These checks provide no value.
 
-**Let checks fail (rely on halt_on_failure) for:** User-configurable security settings (e.g., PITR, deletion protection). In dev, failures appear as warnings in logs—educating developers that their config won't pass in prod. In prod, halt_on_failure stops deployment.
+**Let checks fail (rely on halt_on_failure) for:** User-configurable security settings (e.g., PITR, deletion protection). In dev, failures appear as warnings in logs — educating developers that their config won't pass in prod. In prod, halt_on_failure stops deployment.
 
 Do NOT skip checks just because a param makes them optional. The warning visibility in dev is valuable feedback.
 
@@ -587,6 +591,7 @@ Before publishing:
 - [ ] `tofu init && tofu validate` passes
 - [ ] Artifact JSON matches artifact definition schema
 - [ ] Required providers include `massdriver-cloud/massdriver`
+- [ ] Provider block based on `mass def get <platform>` output (not guessed)
 
 ---
 
@@ -595,13 +600,30 @@ Before publishing:
 | Mistake | Fix |
 |---------|-----|
 | Coupled lifecycles (VPC in database bundle) | Use connections for foundational resources |
-| Provider auth fails | Include ALL fields from credential artifact, use `try()` for optional fields |
+| Provider auth fails | `mass def get <platform>` first, use ALL fields, `try()` for optional |
 | "variable not declared" | Run `mass bundle build` |
 | Param/connection name collision | Rename one |
 | artifacts.tf field mismatch | Ensure `field = "X"` matches `artifacts.properties.X` |
 | Publishing stable during development | Use `--development` flag always until production-ready |
-| Manual deploy after publish | Packages on development channel auto-deploy |
+| Forgot to publish after code change | Platform can't read local files — always publish |
+| Package not auto-updating | Set release channel to `latest+dev` or `~X.Y+dev` right after create |
 | Inline checkov:skip comments | Use `src/.checkov.yml` file instead |
+| Using `massdriver/` prefixed defs | These are deprecated — ignore them completely |
+| Guessing provider config | Always `mass def get` first — providers and artifact defs are 1:1 |
+| Deploy without watching logs | Always `mass logs <id>` after every deploy |
+| Config deploy without message | Always use `-m "description"` with `mass pkg deploy` |
+
+---
+
+## Publishing Reference
+
+| What Changed | Command | Notes |
+|--------------|---------|-------|
+| Bundle code | `mass bundle publish --development` | Always use `--development` |
+| Artifact definition | `mass definition publish artifact-definitions/<name>/massdriver.yaml` | No `--development` flag — goes live immediately, get user approval |
+| Platform definition | `mass definition publish platforms/<name>/massdriver.yaml` | Same as artifact defs — live immediately |
+
+**After ANY change, you MUST publish.** The platform has no access to your local filesystem — changes don't exist until you publish.
 
 ---
 
@@ -610,8 +632,8 @@ Before publishing:
 ```bash
 # Discovery
 mass bundle list              # List available bundles
-mass def list                 # List artifact definitions
-mass def get <name>           # Get artifact definition schema
+mass def list                 # List artifact definitions (ignore massdriver/ prefixed)
+mass def get <name>           # Get artifact definition schema — ALWAYS do before writing providers
 
 # Build
 mass bundle build             # Generate schemas + variables
@@ -620,23 +642,26 @@ tofu init && tofu validate    # Validate IaC
 # Publish Bundles (NEVER without --development unless human authorized)
 mass bundle publish --development
 
-# Publish Artifact Definitions (careful: these are live immediately)
+# Publish Artifact/Platform Definitions (no --development flag, live immediately)
 mass definition publish artifact-definitions/my-artifact/massdriver.yaml
 mass definition publish platforms/my-cloud/massdriver.yaml
 
 # Package Management
 mass pkg create <slug> --bundle <bundle>
-mass pkg version <slug>@latest --release-channel development
+mass pkg version <slug>@latest --release-channel "latest+dev"  # Do IMMEDIATELY after create
 mass pkg cfg <slug> --params=/tmp/params.json
 mass pkg deploy <slug> -m "Description of changes"
 
-# Debugging
+# ALWAYS watch logs
 mass logs <deployment-id>
+
+# Debugging
+mass pkg get <slug> -ojson           # Get package JSON with active/latest deployment ID
 mass artifact get <artifact-name>
 
-# Project/Environment
-mass project create <slug> --name "<Name>"
+# Environment
 mass env create <slug> --name "<Name>"
+mass env list <project>
 ```
 
 ---
