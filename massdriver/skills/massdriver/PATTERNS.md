@@ -1,6 +1,8 @@
 # Massdriver Pattern Reference
 
-Complete examples for bundles, artifact definitions, and platforms. Use these for copy-paste and learning.
+Complete examples for bundles, resource types, and platforms. Use these for copy-paste and learning.
+
+> **Naming note:** v2 calls schema contracts **resource types** (formerly "artifact definitions"). The repository directory is still `artifact-definitions/` — that's a filesystem convention that hasn't been renamed yet. In the bundle YAML, the output section is still called `artifacts:` and the Terraform resource is still `massdriver_artifact`. Where this file says "artifact definition", read "resource type".
 
 ## Complete Bundle Examples
 
@@ -362,9 +364,9 @@ ui:
 
 ---
 
-## Artifact Definition Patterns
+## Resource Type Patterns (a.k.a. Artifact Definitions)
 
-Artifact definitions live in `artifact-definitions/<name>/massdriver.yaml`. They define schema contracts for data passed between bundles.
+Resource types live in `artifact-definitions/<name>/massdriver.yaml` (directory name is legacy; the contracts themselves are v2 resource types). They define schema contracts for data passed between bundles.
 
 **Directory structure:**
 ```
@@ -630,7 +632,7 @@ Export templates use `{{artifact.<field>}}` for interpolation. When users click 
 
 ## Platform Definition Pattern
 
-Platforms are artifact definitions for cloud authentication. They're technically identical to artifact definitions in `artifact-definitions/` - the separate `platforms/` directory is purely organizational to distinguish infrastructure artifacts from authentication/onboarding artifacts.
+Platforms are resource types for cloud authentication. They're technically identical to other resource types in `artifact-definitions/` — the separate `platforms/` directory is purely organizational to distinguish credential resource types from infrastructure ones.
 
 **platforms/aws/massdriver.yaml**:
 ```yaml
@@ -690,16 +692,16 @@ provider "aws" {
 }
 ```
 
-**Environment Defaults Flow:**
-1. Admin creates AWS credential artifact via platform UI form
-2. Admin sets credential as default for "production" environment
-3. User adds RDS bundle to "production" environment
-4. Bundle automatically receives the credential (no manual connection needed)
-5. Terraform provider authenticates using the role ARN
+**Environment Defaults Flow (v2):**
+1. Admin creates AWS credential resource via platform UI form (or `mass resource create`)
+2. Admin sets it as default for the production environment: `mass environment default <project>-prod <resource-id>`
+3. The blueprint includes a component for the RDS bundle (`mass component add <project> aws-rds-postgres --id db`)
+4. Each environment auto-instantiates the component; the prod instance receives the default credential automatically
+5. Terraform provider authenticates using the role ARN at deploy time
 
 **Cross-Project Sharing:**
 - Project A (Platform Team): Manages VPC, sets network as shareable
-- Project B (App Team): Deploys into the VPC but cannot modify it
+- Project B (App Team): Deploys into the VPC via remote references (`setRemoteReference` GraphQL mutation)
 - Connection presentation controls visibility: linkable handle vs env-default-only
 
 ---

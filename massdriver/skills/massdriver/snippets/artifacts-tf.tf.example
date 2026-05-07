@@ -9,10 +9,10 @@ resource "massdriver_artifact" "my_artifact" {
   # name: Display name shown in Massdriver UI
   name = "My Artifact ${var.md_metadata.name_prefix}"
 
-  # artifact: JSON structure must match the artifact definition schema
+  # artifact: JSON structure must match the resource type schema
   # If $ref: postgres, structure must match artifact-definitions/postgres.json
   artifact = jsonencode({
-    # Required fields from artifact definition
+    # Required fields from resource type
     id = "unique-identifier" # Usually from a resource attribute
 
     # Example: Database artifact structure
