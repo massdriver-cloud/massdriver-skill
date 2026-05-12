@@ -11,7 +11,7 @@ This plugin requires the **v2 Massdriver CLI** (`mass`) and targets the **v2 Gra
 /plugin marketplace add massdriver-cloud/claude-plugins
 
 # Install the plugin
-/plugin install massdriver@massdriver-cloud-claude-plugins
+/plugin install massdriver@massdriver
 ```
 
 ## Commands
